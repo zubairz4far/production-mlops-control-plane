@@ -3,6 +3,7 @@ services:
     build: .
     environment:
       CONTROL_PLANE_DB: /data/control-plane.db
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?Set CONTROL_PLANE_API_KEY before starting}
     ports:
       - "8000:8000"
     volumes:
