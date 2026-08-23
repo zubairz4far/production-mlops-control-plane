@@ -1,0 +1,28 @@
+services:
+  control-plane:
+    build: .
+    environment:
+      CONTROL_PLANE_DB: /data/control-plane.db
+      CONTROL_PLANE_API_KEY: ${CONTROL_PLANE_API_KEY:?Set CONTROL_PLANE_API_KEY before starting}
+    ports:
+      - "8000:8000"
+    volumes:
+      - control_plane_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+
+volumes:
+  control_plane_data:

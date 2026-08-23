@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-ci.txt
+      - run: pip install -e . --no-deps
+      - run: ruff check .
+      - run: pytest -q
+
+  lifecycle-benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-ci.txt
+      - run: pip install -e . --no-deps
+      - name: Run deterministic control-plane lifecycle
+        run: |
+          mlops-control-plane demo \
+            --output /tmp/v0.1_control_plane.json \
+            | tee /tmp/v0.1_control_plane.log
+      - name: Verify frozen v0.1 evidence
+        run: diff -u evals/results/v0.1_control_plane.json /tmp/v0.1_control_plane.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v0.1-control-plane-evidence
+          path: /tmp/v0.1_control_plane.json
+          retention-days: 14
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: CONTROL_PLANE_API_KEY=ci-secret docker compose config -q
+      - name: Build container
+        run: docker build -t mlops-control-plane:ci .
+      - name: Smoke-test container and API auth
+        run: |
+          set -euo pipefail
+          docker run -d --name mlops-control-plane-ci \
+            -e CONTROL_PLANE_API_KEY=ci-secret \
+            -p 8000:8000 \
+            mlops-control-plane:ci
+          trap 'docker rm -f mlops-control-plane-ci >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/health
+          code=$(curl -sS -o /tmp/unauthorized -w '%{http_code}' http://127.0.0.1:8000/models)
+          test "$code" = "401"
+          curl -fsS -H 'X-API-Key: ci-secret' http://127.0.0.1:8000/models
