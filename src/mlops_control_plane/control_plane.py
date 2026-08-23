@@ -281,6 +281,20 @@ class ControlPlane:
         deployment = self.get_deployment(deployment_id)
         if deployment["state"] != "CANARY":
             raise ValueError("only a CANARY deployment can be promoted")
+        latest_drift = self.store.fetchone(
+            """
+            SELECT decision FROM drift_reports
+            WHERE deployment_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (deployment_id,),
+        )
+        if latest_drift is None:
+            raise ValueError("canary promotion requires an ALLOW drift decision")
+        if latest_drift["decision"] != "ALLOW":
+            raise ValueError(
+                f"canary promotion blocked by drift decision {latest_drift['decision']}"
+            )
         now = self.clock()
         previous_id = deployment["previous_deployment_id"]
         with self.store.transaction() as connection:
