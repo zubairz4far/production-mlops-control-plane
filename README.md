@@ -4,6 +4,8 @@
 
 Auditable model promotion, lineage, canary deployment, drift policy, rollback, API security, and observability in one small production-style control plane.
 
+> **Cross-project portfolio:** [`PORTFOLIO.md`](PORTFOLIO.md) — evaluated LLM, RAG, MLOps, predictive-maintenance, energy-grid, warehouse, and fleet systems.
+
 ## Status
 
 **v0.1 — evaluated deterministic control-plane lifecycle.**
