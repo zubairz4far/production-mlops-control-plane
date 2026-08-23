@@ -1,5 +1,6 @@
 import hashlib
 import math
+import sqlite3
 
 import pytest
 
@@ -46,26 +47,41 @@ def candidate_policy() -> PromotionPolicy:
     )
 
 
-def test_canary_promotion_and_drift_rollback() -> None:
+def prepared_canary() -> tuple[ControlPlane, dict[str, object], dict[str, object]]:
     control = ControlPlane(Store(":memory:"))
     control.register_model(registration("v1", 100.0))
     assert control.evaluate_model("forecast", "v1", bootstrap_policy()).decision == "PROMOTE"
     first = control.bootstrap_deployment("forecast", "v1")
-
     control.register_model(registration("v2", 90.0, 198.0))
     assert control.evaluate_model("forecast", "v2", candidate_policy()).decision == "PROMOTE"
     canary = control.create_canary("forecast", "v2", traffic_pct=10.0)
+    return control, first, canary
+
+
+def test_canary_promotion_and_drift_rollback() -> None:
+    control, first, canary = prepared_canary()
     assert control.get_deployment(int(first["id"]))["traffic_pct"] == 90.0
+
+    reference = [math.sin(i * 0.1) for i in range(250)]
+    safe = [value + 0.01 * math.cos(i * 0.07) for i, value in enumerate(reference)]
+    canary_report = control.record_drift(int(canary["id"]), reference, safe)
+    assert canary_report["decision"] == "ALLOW"
+
     active = control.promote_canary(int(canary["id"]))
     assert active["state"] == "ACTIVE"
 
-    reference = [math.sin(i * 0.1) for i in range(250)]
     shifted = [value + 1.4 for value in reference]
     report = control.record_drift(int(active["id"]), reference, shifted)
     assert report["decision"] == "BLOCK"
     restored = control.rollback(int(active["id"]))
     assert restored["version"] == "v1"
     assert restored["traffic_pct"] == 100.0
+
+
+def test_canary_cannot_promote_without_allow_drift() -> None:
+    control, _, canary = prepared_canary()
+    with pytest.raises(ValueError, match="ALLOW drift decision"):
+        control.promote_canary(int(canary["id"]))
 
 
 def test_rejected_model_cannot_be_deployed() -> None:
@@ -78,3 +94,15 @@ def test_rejected_model_cannot_be_deployed() -> None:
     assert result.decision == "REJECT"
     with pytest.raises(ValueError):
         control.create_canary("forecast", "bad")
+
+
+def test_audit_events_are_database_immutable() -> None:
+    store = Store(":memory:")
+    control = ControlPlane(store)
+    control.register_model(registration("v1", 100.0))
+    with pytest.raises(sqlite3.IntegrityError, match="audit events are immutable"):
+        with store.transaction() as connection:
+            connection.execute("UPDATE audit_events SET event_type = 'TAMPERED' WHERE id = 1")
+    with pytest.raises(sqlite3.IntegrityError, match="audit events are immutable"):
+        with store.transaction() as connection:
+            connection.execute("DELETE FROM audit_events WHERE id = 1")
