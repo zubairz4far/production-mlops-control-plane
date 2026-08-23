@@ -10,7 +10,7 @@ This repository is a control-plane benchmark, not another predictive model. It g
 - **promotion events** — candidate/champion comparison, full policy snapshot, decision and rejection reasons;
 - **deployments** — environment revision, model version, lifecycle state, traffic percentage and previous revision;
 - **drift reports** — PSI, KS statistic, standardized mean shift, severity and allow/watch/block decision;
-- **audit events** — append-only control-plane transition evidence.
+- **audit events** — control-plane transition evidence protected by SQLite triggers that reject update/delete attempts.
 
 ## Promotion contract
 
@@ -28,17 +28,18 @@ A rejected model is moved to `REJECTED` and is ineligible for canary deployment.
 ## Deployment state machine
 
 ```text
-REGISTERED -> VALIDATED -> CANARY -> ACTIVE
-     |                         |        |
-     +------> REJECTED         |        +-> ROLLED_BACK
-                               +-> unsafe drift -> BLOCK
+REGISTERED -> VALIDATED -> CANARY --ALLOW drift--> ACTIVE
+     |                         |                     |
+     +------> REJECTED         +--WATCH/BLOCK------> no promotion
+                                                   |
+                                                   +-> BLOCK -> ROLLED_BACK
 
 previous ACTIVE -> 90% while canary receives 10%
 canary promote  -> previous SUPERSEDED 0%, candidate ACTIVE 100%
 critical drift  -> explicit rollback restores previous revision ACTIVE 100%
 ```
 
-The exact traffic split is configurable for canaries. v0.1 rejects creating a canary when there is no fully active previous deployment.
+The exact traffic split is configurable for canaries. v0.1 rejects creating a canary when there is no fully active previous deployment, and refuses canary promotion unless the latest drift report for that canary is explicitly `ALLOW`.
 
 ## Drift policy
 
@@ -54,8 +55,16 @@ The drift monitor is offline evidence. It does not claim causal model degradatio
 
 ## Rollback safety
 
-By default, rollback is refused unless the active deployment has a recorded `BLOCK` drift report and a previous deployment revision exists. The rollback transaction restores the previous revision to 100% traffic, marks the current revision `ROLLED_BACK`, archives its model stage, restores the previous model to `PRODUCTION`, and appends an audit event.
+By default, rollback is refused unless the active deployment has a recorded `BLOCK` drift report and a previous deployment revision exists. The rollback transaction restores the previous revision to 100% traffic, marks the current revision `ROLLED_BACK`, archives its model stage, restores the previous model to `PRODUCTION`, and appends an immutable audit event.
+
+## API security boundary
+
+All registry, deployment, drift, and audit endpoints require `X-API-Key`. The configured secret is read from `CONTROL_PLANE_API_KEY`; if no key is configured, protected endpoints fail closed with HTTP 503. `/health` and `/metrics` remain unauthenticated for probes and scraping.
+
+The shared key is intentionally a small v0.1 boundary, not an enterprise identity system. A production organization should normally place the service behind TLS and use OIDC/service identity, RBAC, secret rotation, network policy, and an authorization audit trail.
 
 ## Storage and deployment limitation
 
-The service uses SQLite for a self-contained portfolio implementation. Docker Compose mounts a persistent volume. The Kubernetes manifest intentionally uses `emptyDir` only as a runnable example and **is not a production HA persistence design**; a real deployment should use an external transactional database and leader/concurrency controls before running multiple replicas.
+The service uses SQLite for a self-contained portfolio implementation. Docker Compose mounts a persistent volume. The Kubernetes example uses a single replica, `Recreate` rollout strategy, and a `ReadWriteOnce` PVC so there is only one SQLite writer and data survives pod replacement.
+
+This is still **not a highly available persistence design**. A real multi-replica control plane should use an external transactional database plus distributed concurrency/leader controls. The Kubernetes manifest also references an API-key Secret that must be created separately; no credential is committed to the repository.
