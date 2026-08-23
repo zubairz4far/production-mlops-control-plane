@@ -20,11 +20,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-ci.txt
       - run: pip install -e . --no-deps
-      - name: Show Ruff canonical diff
-        run: |
-          ruff check . --fix
-          git diff -- src/mlops_control_plane/store.py
-          git diff --quiet || exit 1
+      - run: ruff check .
       - run: pytest -q
 
   lifecycle-benchmark:
@@ -44,7 +40,6 @@ jobs:
             --output /tmp/v0.1_control_plane.json \
             | tee /tmp/v0.1_control_plane.log
       - name: Verify frozen v0.1 evidence
-        if: hashFiles('evals/results/v0.1_control_plane.json') != ''
         run: diff -u evals/results/v0.1_control_plane.json /tmp/v0.1_control_plane.json
       - uses: actions/upload-artifact@v4
         with:
