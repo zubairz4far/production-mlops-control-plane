@@ -40,6 +40,11 @@ spec:
           env:
             - name: CONTROL_PLANE_DB
               value: /data/control-plane.db
+            - name: CONTROL_PLANE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mlops-control-plane-secrets
+                  key: api-key
           readinessProbe:
             httpGet:
               path: /health
