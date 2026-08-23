@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlops-control-plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mlops-control-plane
+  template:
+    metadata:
+      labels:
+        app: mlops-control-plane
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: control-plane
+          image: ghcr.io/example/production-mlops-control-plane:0.1.0
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CONTROL_PLANE_DB
+              value: /data/control-plane.db
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlops-control-plane
+spec:
+  selector:
+    app: mlops-control-plane
+  ports:
+    - port: 80
+      targetPort: 8000

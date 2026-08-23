@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "production-mlops-control-plane"
+version = "0.1.0"
+description = "Auditable model promotion, deployment, drift, and rollback control plane"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.141,<0.142",
+  "pydantic>=2.13,<2.14",
+  "prometheus-client>=0.26,<0.27",
+  "uvicorn>=0.52,<0.53",
+]
+
+[project.scripts]
+mlops-control-plane = "mlops_control_plane.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
