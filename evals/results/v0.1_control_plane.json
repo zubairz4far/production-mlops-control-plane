@@ -1,0 +1,104 @@
+{
+  "release": "v0.1",
+  "scenario": {
+    "registered_models": 3,
+    "audit_events": 12,
+    "production_revisions": 2
+  },
+  "promotion_policy": {
+    "primary_metric": "mae",
+    "direction": "min",
+    "min_relative_improvement": 0.05,
+    "max_secondary_regression": {
+      "p95_error": 0.02
+    },
+    "minimum_metrics": {
+      "schema_validity": 0.99
+    },
+    "maximum_metrics": {},
+    "min_eval_samples": 1000,
+    "allow_bootstrap": false
+  },
+  "decisions": {
+    "bootstrap_v1": {
+      "decision": "PROMOTE",
+      "reasons": [],
+      "candidate_stage": "VALIDATED",
+      "champion_version": null,
+      "primary_relative_improvement": null
+    },
+    "bad_candidate_v2": {
+      "decision": "REJECT",
+      "reasons": [
+        "primary relative improvement -0.0333 < required 0.0500",
+        "p95_error 275 > guarded ceiling 265.2"
+      ],
+      "candidate_stage": "REJECTED",
+      "champion_version": "v1",
+      "primary_relative_improvement": -0.03333333333333333
+    },
+    "good_candidate_v3": {
+      "decision": "PROMOTE",
+      "reasons": [],
+      "candidate_stage": "VALIDATED",
+      "champion_version": "v1",
+      "primary_relative_improvement": 0.11666666666666667
+    }
+  },
+  "drift": {
+    "canary": {
+      "psi": 0.0012624351159452115,
+      "ks_stat": 0.01200000000000001,
+      "mean_shift_sigma": 0.0005092987299752674,
+      "severity": "OK",
+      "decision": "ALLOW"
+    },
+    "production_shift": {
+      "psi": 6.786477547833034,
+      "ks_stat": 0.5640000000000001,
+      "mean_shift_sigma": 1.9002329275333025,
+      "severity": "CRITICAL",
+      "decision": "BLOCK"
+    }
+  },
+  "deployment_lifecycle": [
+    {
+      "revision": 1,
+      "version": "v1",
+      "state": "ACTIVE",
+      "traffic_pct": 100.0,
+      "previous_deployment_id": null
+    },
+    {
+      "revision": 2,
+      "version": "v3",
+      "state": "ROLLED_BACK",
+      "traffic_pct": 0.0,
+      "previous_deployment_id": 1
+    }
+  ],
+  "final_production": {
+    "version": "v1",
+    "revision": 1,
+    "traffic_pct": 100.0
+  },
+  "invariants": {
+    "exactly_one_active_production": true,
+    "bad_candidate_never_deployed": true,
+    "rollback_restored_v1": true,
+    "all_models_have_lineage_hashes": true,
+    "critical_drift_blocks": true,
+    "safe_canary_allowed": true
+  },
+  "release_gate": {
+    "decision": "PASS",
+    "rule": "bootstrap/promotion/rejection, safe canary, critical drift block, rollback, lineage, and single-active-production invariants must all hold"
+  },
+  "runtime": {
+    "python": "3.12.14",
+    "fastapi": "0.141.1",
+    "pydantic": "2.13.4",
+    "prometheus_client": "0.26.0",
+    "uvicorn": "0.52.1"
+  }
+}
