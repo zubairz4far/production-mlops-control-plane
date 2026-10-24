@@ -40,7 +40,7 @@ jobs:
             --output /tmp/v0.1_control_plane.json \
             | tee /tmp/v0.1_control_plane.log
       - name: Verify frozen v0.1 evidence
-        run: diff -u evals/results/v0.1_control_plane.json /tmp/v0.1_control_plane.json
+        run: python scripts/verify_frozen_lifecycle.py evals/results/v0.1_control_plane.json /tmp/v0.1_control_plane.json
       - uses: actions/upload-artifact@v4
         with:
           name: v0.1-control-plane-evidence
