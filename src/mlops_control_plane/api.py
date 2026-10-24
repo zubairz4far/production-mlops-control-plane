@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import sqlite3
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
@@ -46,7 +47,9 @@ def create_app(
     def register_model(payload: ModelRegistration) -> dict[str, object]:
         try:
             return control_plane.register_model(payload)
-        except Exception as exc:
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="model version already registered") from exc
+        except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/models/{model_name}/{version}/evaluate", dependencies=protected)
