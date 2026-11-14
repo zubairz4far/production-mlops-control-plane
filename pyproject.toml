@@ -9,10 +9,10 @@ description = "Auditable model promotion, deployment, drift, and rollback contro
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.141,<0.142",
-  "pydantic>=2.13,<2.14",
+  "fastapi>=0.141,<0.163",
+  "pydantic>=2.13,<2.15",
   "prometheus-client>=0.26,<0.27",
-  "uvicorn>=0.52,<0.53",
+  "uvicorn>=0.52,<0.55",
 ]
 
 [project.scripts]
